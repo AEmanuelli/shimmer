@@ -202,6 +202,8 @@ class GWEncoder(GWDecoder):
         super().__init__(in_dim, hidden_dim, out_dim, n_layers)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # print("
+        #  1 : Inside the forward function of the GWEncoder", "Input shape : ", input.shape, "shape of the first layer : ", self.in_dim, self.hidden_dim)   
         return super().forward(input)
 
 
@@ -413,6 +415,7 @@ class GWModule(GWModuleBase):
         )
 
     def encode(self, x: LatentsDomainGroupT) -> LatentsDomainGroupDT:
+    
         """
         Encode the latent representation infos to the pre-fusion GW representation.
 
@@ -422,6 +425,8 @@ class GWModule(GWModuleBase):
         Returns:
             `LatentsDomainGroupT`: pre-fusion representation
         """
+        # print("Flag 2 : Before encoding in the GW ")
+
         return {
             domain_name: self.gw_encoders[domain_name](domain)
             for domain_name, domain in x.items()
