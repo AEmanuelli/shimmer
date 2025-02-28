@@ -178,6 +178,68 @@ class GWDecoder(nn.Sequential):
             nn.Linear(self.hidden_dim, self.out_dim),
         )
 
+class GWDecoder_legacy(nn.Module):
+    """A legacy Decoder network for GWModules with flexible layer configuration."""
+    def __init__(
+        self,
+        in_dim: int,
+        hidden_dim: int,
+        out_dim: int = 11,  # Default is 3 (categories) + 8 (attributes)
+        n_layers: int = 2,   # Default to match original legacy implementation
+    ):
+        """
+        Initializes the legacy decoder with flexible number of layers.
+        Args:
+            in_dim (`int`): input dimension
+            hidden_dim (`int`): hidden dimension
+            out_dim (`int`, optional): total output dimension, defaults to 11 (3+8)
+            n_layers (`int`, optional): number of hidden layers, defaults to 2
+        """
+        super().__init__()
+        self.in_dim = in_dim
+        """input dimension"""
+        self.hidden_dim = hidden_dim
+        """hidden dimension"""
+        self.out_dim = out_dim
+        """output dimension"""
+        self.n_layers = n_layers
+        """number of hidden layers"""
+        
+        # Create flexible main decoder based on n_layers
+        layers = [nn.Linear(self.in_dim, self.hidden_dim), nn.ReLU()]
+        
+        # Add additional hidden layers based on n_layers
+        for _ in range(n_layers - 1):  # -1 because we already added the first layer
+            layers.extend([nn.Linear(self.hidden_dim, self.hidden_dim), nn.ReLU()])
+            
+        self.decoder = nn.Sequential(*layers)
+        
+        # Keep original output structure but make category dimension configurable
+        # For backward compatibility: if out_dim == 11, use 3 and 8 as original
+        if out_dim == 11:
+            self.cat_dim = 3
+            self.attr_dim = 8
+        else:
+            # Simple heuristic to divide output dimension - can be adjusted
+            self.cat_dim = 3
+            self.attr_dim = out_dim - self.cat_dim  # Remaining for attributes
+        
+        self.decoder_categories = nn.Sequential(
+            nn.Linear(self.hidden_dim, self.cat_dim),
+        )
+        self.decoder_attributes = nn.Sequential(
+            nn.Linear(self.hidden_dim, self.attr_dim),
+            nn.Tanh(),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.decoder(x)
+        categories = self.decoder_categories(out)
+        attributes = self.decoder_attributes(out)
+        # Concatenate along the last dimension (assuming this is appropriate)
+        return torch.cat([categories, attributes], dim=1)
+
+        
 
 class GWEncoder(GWDecoder):
     """An Encoder network used in GWModules."""
@@ -202,8 +264,6 @@ class GWEncoder(GWDecoder):
         super().__init__(in_dim, hidden_dim, out_dim, n_layers)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # print("
-        #  1 : Inside the forward function of the GWEncoder", "Input shape : ", input.shape, "shape of the first layer : ", self.in_dim, self.hidden_dim)   
         return super().forward(input)
 
 
@@ -415,7 +475,6 @@ class GWModule(GWModuleBase):
         )
 
     def encode(self, x: LatentsDomainGroupT) -> LatentsDomainGroupDT:
-    
         """
         Encode the latent representation infos to the pre-fusion GW representation.
 
@@ -425,8 +484,6 @@ class GWModule(GWModuleBase):
         Returns:
             `LatentsDomainGroupT`: pre-fusion representation
         """
-        # print("Flag 2 : Before encoding in the GW ")
-
         return {
             domain_name: self.gw_encoders[domain_name](domain)
             for domain_name, domain in x.items()
