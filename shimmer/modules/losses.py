@@ -666,8 +666,15 @@ def broadcast_loss(
             torch.stack([losses[loss_name] for loss_name in demi_cycle_losses])
         )
     if cycle_losses:
-        metrics["cycles"] = torch.mean(
-            torch.stack([losses[loss_name] for loss_name in cycle_losses])
+        # Apply weighted mean to cycle losses - weight can be adjusted based on domains
+        weights = torch.ones(len(cycle_losses), device=losses[cycle_losses[0]].device)
+
+        # Example: weight the sec half of cycle losses (not from v to attr) more (2x) than the second half (not from attr to v) 
+        if len(cycle_losses) > 1:
+            weights[1] = 3.0
+            weights = weights / weights.sum() * len(weights)  # Normalize weights
+        metrics["cycles"] = torch.sum(
+            torch.stack([losses[loss_name] * w for loss_name, w in zip(cycle_losses, weights)])
         )
     if translation_losses:
         metrics["translations"] = torch.mean(
